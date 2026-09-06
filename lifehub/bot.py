@@ -216,6 +216,20 @@ _PROCESSED_MESSAGES: OrderedDict[str, float] = OrderedDict()
 _DEDUP_WINDOW = 300.0  # 5 分钟内去重
 
 
+def _log(msg: str) -> None:
+    from pathlib import Path
+    now_str = time.strftime("%Y-%m-%d %H:%M:%S")
+    line = f"[{now_str}] {msg}"
+    print(line, flush=True)
+    try:
+        log_dir = Path("data")
+        log_dir.mkdir(parents=True, exist_ok=True)
+        with open(log_dir / "bot.log", "a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except Exception:
+        pass
+
+
 def _is_duplicate_message(msg_id: str) -> bool:
     if not msg_id:
         return False
@@ -254,7 +268,7 @@ def start() -> None:
         resp = client.im.v1.message.reply(req)
         ok = resp.success() if hasattr(resp, "success") else (getattr(resp, "code", -1) == 0)
         code = getattr(resp, "code", None)
-        print(f"[REPLY] type={payload['msg_type']} ok={ok} code={code}", flush=True)
+        _log(f"[REPLY] type={payload['msg_type']} ok={ok} code={code}")
         if not ok and chat_id:
             from lark_oapi.api.im.v1 import CreateMessageRequest, CreateMessageRequestBody
             creq = CreateMessageRequest.builder().receive_id_type("chat_id") \
@@ -263,7 +277,7 @@ def start() -> None:
                               .content(content)
                               .msg_type(payload["msg_type"]).build()).build()
             cresp = client.im.v1.message.create(creq)
-            print(f"[FALLBACK CREATE] code={getattr(cresp, 'code', None)}", flush=True)
+            _log(f"[FALLBACK CREATE] code={getattr(cresp, 'code', None)}")
 
     def _handle_codex(prompt: str, message_id: str, chat_id: str | None, thread_key: str) -> None:
         if not codex_runner.enabled_for(chat_id):
@@ -322,7 +336,7 @@ def start() -> None:
             if not msg or not getattr(msg, "message_id", None):
                 return
             if _is_duplicate_message(msg.message_id):
-                print(f"[DEDUP] 忽略重复推送消息 msg_id={msg.message_id}", flush=True)
+                _log(f"[DEDUP] 忽略重复推送消息 msg_id={msg.message_id}")
                 return
 
             chat_id = getattr(msg, "chat_id", None)
@@ -332,7 +346,7 @@ def start() -> None:
                 content_obj = json.loads(msg.content)
                 file_key = content_obj.get("file_key")
                 file_name = content_obj.get("file_name") or f"file_{msg.message_id}.bin"
-                print(f"[RECV FILE] {file_name} key={file_key}", flush=True)
+                _log(f"[RECV FILE] {file_name} key={file_key}")
                 ok, ret_msg, saved_path = transfer.download_message_resource(
                     message_id=msg.message_id,
                     file_key=file_key,
@@ -358,7 +372,7 @@ def start() -> None:
                 content_obj = json.loads(msg.content)
                 image_key = content_obj.get("image_key")
                 file_name = f"image_{msg.message_id}.jpg"
-                print(f"[RECV IMAGE] key={image_key}", flush=True)
+                _log(f"[RECV IMAGE] key={image_key}")
                 ok, ret_msg, saved_path = transfer.download_message_resource(
                     message_id=msg.message_id,
                     file_key=image_key,
@@ -381,7 +395,7 @@ def start() -> None:
             text = re.sub(r"@_user_\d+", "", json.loads(msg.content).get("text", "")).strip()
             root_id = getattr(msg, "root_id", None)
             thread_key = root_id or msg.message_id
-            print(f"[RECV] text={text!r} chat_id={chat_id} root_id={root_id}", flush=True)
+            _log(f"[RECV] text={text!r} chat_id={chat_id} root_id={root_id} msg_id={msg.message_id}")
 
             codex_prompt = _codex_match(text)
             # 如果用户在已有的 Codex 话题 Thread 下点击「回复」，无需强制加 codex 前缀即可接续追问
@@ -393,7 +407,7 @@ def start() -> None:
                 return
             reply(msg.message_id, _handle_text(text, chat_id=chat_id), chat_id=chat_id)
         except Exception as e:
-            print(f"[ERROR] on_message: {e}", flush=True)
+            _log(f"[ERROR] on_message: {e}")
             try:
                 reply(data.event.message.message_id, _text_msg(f"处理出错：{e}"), chat_id=chat_id)
             except Exception:

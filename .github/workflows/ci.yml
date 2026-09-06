@@ -35,10 +35,10 @@ jobs:
 
       - name: Leak & placeholder guard
         run: |
-          if grep -RniE 'oc_[0-9a-f]{20,}|GBFPbsB2jaMpjYsxINmc8tDAngR|tblylXZVS3NmkbcU|cli_aa105d0a26b8dbe5|sk-07a17fccc2b040428bdf4f0a048d039c|29781|企鹅大王咕咕嘎|自然之宝|伊利|your-repo-url' \
-            --include='*.py' --include='*.toml' --include='*.md' \
-            --include='*.ps1' --include='*.vbs' --include='*.bat' \
-            --include='*.yml' --include='*.yaml' .; then
+          # Scan only tracked source/docs files; exclude .github so the guard
+          # never trips on its own pattern list inside ci.yml.
+          if git grep -niE 'oc_[0-9a-f]{20,}|GBFPbsB2jaMpjYsxINmc8tDAngR|tblylXZVS3NmkbcU|cli_aa105d0a26b8dbe5|sk-07a17fccc2b040428bdf4f0a048d039c|29781|企鹅大王咕咕嘎|自然之宝|伊利|your-repo-url' \
+            -- '*.py' '*.toml' '*.md' '*.ps1' '*.vbs' '*.bat' '*.yml' '*.yaml' ':!.github'; then
             echo "::error title=LeakGuard::forbidden pattern(s) found in tracked files"
             exit 1
           fi

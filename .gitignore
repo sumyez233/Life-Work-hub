@@ -21,6 +21,7 @@ data/*.db-wal
 data/*.db-shm
 data/*.lock
 data/*.json
+data/*.log
 
 # Local User Inbox & Downloads
 inbox/
