@@ -113,6 +113,7 @@ def _handle_text(text: str, chat_id: str | None = None) -> dict:
             if ok:
                 return _text_msg(f"✓ 已将「{target.name}」直接推送到飞书！")
             return _text_msg(f"推送文件失败：{msg}")
+        return _text_msg(f"✗ 未在常用目录找到：{file_query}")
 
     # 2. 看板/大盘卡片召回
     board_name = _match_board(text)

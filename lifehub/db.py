@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sqlite3
+from contextlib import contextmanager
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -84,8 +85,22 @@ def connect() -> sqlite3.Connection:
     return conn
 
 
+@contextmanager
+def _conn():
+    """事务上下文：正常退出提交，异常回滚，无论哪种都关闭连接。"""
+    conn = connect()
+    try:
+        yield conn
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 def init_db() -> None:
-    with connect() as conn:
+    with _conn() as conn:
         _migrate(conn)
 
 
@@ -93,7 +108,7 @@ def init_db() -> None:
 
 def add_todo(title: str, due: str | None = None, priority: int = 0,
              source: str = "manual") -> int:
-    with connect() as conn:
+    with _conn() as conn:
         cur = conn.execute(
             "INSERT INTO todos(title, due, priority, source) VALUES(?,?,?,?)",
             (title, due, priority, source))
@@ -101,7 +116,7 @@ def add_todo(title: str, due: str | None = None, priority: int = 0,
 
 
 def complete_todo(tid: int) -> bool:
-    with connect() as conn:
+    with _conn() as conn:
         cur = conn.execute(
             "UPDATE todos SET status='done', done_at=datetime('now','localtime')"
             " WHERE id=? AND status='open'", (tid,))
@@ -113,12 +128,12 @@ def complete_todo_smart(query: str) -> tuple[int, str] | None:
     query = query.strip().lstrip("#")
     if query.isdigit():
         tid = int(query)
-        with connect() as conn:
+        with _conn() as conn:
             row = conn.execute("SELECT id, title FROM todos WHERE id=? AND status='open'", (tid,)).fetchone()
             if row and complete_todo(tid):
                 return row["id"], row["title"]
         return None
-    with connect() as conn:
+    with _conn() as conn:
         rows = conn.execute("SELECT id, title FROM todos WHERE status='open' ORDER BY id DESC").fetchall()
         # 1. 严格子串匹配
         for r in rows:
@@ -145,7 +160,7 @@ def delete_smart(query: str) -> tuple[str, str] | None:
                 return label, title
         return None
     # 文本模糊匹配
-    with connect() as conn:
+    with _conn() as conn:
         # 优先在待办中找
         rows = conn.execute("SELECT id, title FROM todos WHERE status='open' ORDER BY id DESC").fetchall()
         for r in rows:
@@ -171,21 +186,21 @@ def delete_smart(query: str) -> tuple[str, str] | None:
 def list_todos(status: str = "open") -> list[sqlite3.Row]:
     order = ("CASE WHEN due IS NULL THEN 1 ELSE 0 END, due, priority DESC, id" if status == "open"
              else "done_at DESC, id DESC")
-    with connect() as conn:
+    with _conn() as conn:
         return conn.execute(
             f"SELECT * FROM todos WHERE status=? ORDER BY {order}", (status,)).fetchall()
 
 
 def overdue_today_open() -> list[sqlite3.Row]:
     today = date.today().isoformat()
-    with connect() as conn:
+    with _conn() as conn:
         return conn.execute(
             "SELECT * FROM todos WHERE status='open' AND due IS NOT NULL AND due<=?"
             " ORDER BY due, priority DESC", (today,)).fetchall()
 
 
 def todo_stats() -> dict[str, int]:
-    with connect() as conn:
+    with _conn() as conn:
         row = conn.execute(
             "SELECT"
             " COALESCE(SUM(CASE WHEN status='open' THEN 1 ELSE 0 END),0) AS open_n,"
@@ -204,7 +219,7 @@ def todo_stats() -> dict[str, int]:
 
 def add_event(title: str, start_at: str, end_at: str | None = None,
               note: str | None = None, source: str = "manual") -> int:
-    with connect() as conn:
+    with _conn() as conn:
         cur = conn.execute(
             "INSERT INTO events(title, start_at, end_at, note, source) VALUES(?,?,?,?,?)",
             (title, start_at, end_at, note, source))
@@ -212,14 +227,14 @@ def add_event(title: str, start_at: str, end_at: str | None = None,
 
 
 def events_on(day: str) -> list[sqlite3.Row]:
-    with connect() as conn:
+    with _conn() as conn:
         return conn.execute(
             "SELECT * FROM events WHERE substr(start_at,1,10)=? ORDER BY start_at",
             (day,)).fetchall()
 
 
 def events_between(dt_from: str, dt_to: str) -> list[sqlite3.Row]:
-    with connect() as conn:
+    with _conn() as conn:
         return conn.execute(
             "SELECT * FROM events WHERE start_at BETWEEN ? AND ? ORDER BY start_at",
             (dt_from, dt_to)).fetchall()
@@ -233,7 +248,7 @@ def upcoming_events(days: int = 14) -> list[sqlite3.Row]:
 
 def event_stats() -> dict[str, int]:
     today = date.today().isoformat()
-    with connect() as conn:
+    with _conn() as conn:
         today_n = conn.execute(
             "SELECT COUNT(*) FROM events WHERE substr(start_at,1,10)=?",
             (today,)).fetchone()[0]
@@ -244,20 +259,20 @@ def event_stats() -> dict[str, int]:
 # ---------- 提醒去重 ----------
 
 def reminder_sent(ref: str) -> bool:
-    with connect() as conn:
+    with _conn() as conn:
         return conn.execute("SELECT 1 FROM reminders_sent WHERE ref=?",
                             (ref,)).fetchone() is not None
 
 
 def mark_reminder(ref: str) -> None:
-    with connect() as conn:
+    with _conn() as conn:
         conn.execute("INSERT OR IGNORE INTO reminders_sent(ref) VALUES(?)", (ref,))
 
 
 # ---------- 删除 ----------
 
 def delete_todo(tid: int) -> str | None:
-    with connect() as conn:
+    with _conn() as conn:
         row = conn.execute("SELECT title FROM todos WHERE id=?", (tid,)).fetchone()
         if row:
             conn.execute("DELETE FROM todos WHERE id=?", (tid,))
@@ -266,7 +281,7 @@ def delete_todo(tid: int) -> str | None:
 
 
 def delete_event(eid: int) -> str | None:
-    with connect() as conn:
+    with _conn() as conn:
         row = conn.execute("SELECT title FROM events WHERE id=?", (eid,)).fetchone()
         if row:
             conn.execute("DELETE FROM events WHERE id=?", (eid,))
@@ -275,7 +290,7 @@ def delete_event(eid: int) -> str | None:
 
 
 def delete_ledger(lid: int) -> str | None:
-    with connect() as conn:
+    with _conn() as conn:
         row = conn.execute("SELECT note, amount FROM ledger WHERE id=?", (lid,)).fetchone()
         if row:
             conn.execute("DELETE FROM ledger WHERE id=?", (lid,))
@@ -297,7 +312,7 @@ def usage_bump(field: str) -> None:
                    " ON CONFLICT(day) DO UPDATE SET deleted=deleted+1",
     }.get(field)
     if sql:
-        with connect() as conn:
+        with _conn() as conn:
             conn.execute(sql)
 
 
@@ -308,7 +323,7 @@ def add_ledger(amount: float, category: str = "其他", note: str | None = None,
                kind: str = "expense") -> int:
     if kind not in ("expense", "income"):
         kind = "expense"
-    with connect() as conn:
+    with _conn() as conn:
         cur = conn.execute(
             "INSERT INTO ledger(amount, category, note, occurred_on, source, kind)"
             " VALUES(?,?,?,?,?,?)",
@@ -317,7 +332,7 @@ def add_ledger(amount: float, category: str = "其他", note: str | None = None,
 
 
 def spend_between(day_from: str, day_to: str) -> float:
-    with connect() as conn:
+    with _conn() as conn:
         row = conn.execute(
             "SELECT COALESCE(SUM(amount),0) AS s FROM ledger"
             " WHERE kind='expense' AND occurred_on BETWEEN ? AND ?",
@@ -326,7 +341,7 @@ def spend_between(day_from: str, day_to: str) -> float:
 
 
 def income_between(day_from: str, day_to: str) -> float:
-    with connect() as conn:
+    with _conn() as conn:
         row = conn.execute(
             "SELECT COALESCE(SUM(amount),0) AS s FROM ledger"
             " WHERE kind='income' AND occurred_on BETWEEN ? AND ?",
@@ -349,12 +364,12 @@ def list_ledger(limit: int = 40, day_from: str | None = None,
         args.append(kind)
     sql += " ORDER BY occurred_on DESC, id DESC LIMIT ?"
     args.append(limit)
-    with connect() as conn:
+    with _conn() as conn:
         return conn.execute(sql, args).fetchall()
 
 
 def ledger_by_category(day_from: str, day_to: str, kind: str = "expense") -> list[sqlite3.Row]:
-    with connect() as conn:
+    with _conn() as conn:
         return conn.execute(
             "SELECT category, COALESCE(SUM(amount),0) AS s, COUNT(*) AS n"
             " FROM ledger WHERE kind=? AND occurred_on BETWEEN ? AND ?"
@@ -367,7 +382,7 @@ def ledger_stats() -> dict[str, float]:
     iso = today.isoformat()
     month_from = today.replace(day=1).isoformat()
     week_from = (today - timedelta(days=today.weekday())).isoformat()
-    with connect() as conn:
+    with _conn() as conn:
         def _sum(kind: str, d0: str | None = None, d1: str | None = None) -> float:
             sql = "SELECT COALESCE(SUM(amount),0) AS s FROM ledger WHERE kind=?"
             args: list[object] = [kind]

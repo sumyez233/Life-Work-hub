@@ -15,16 +15,14 @@ import shutil
 import subprocess
 import threading
 import tempfile
-from pathlib import Path
-
 import json
 from pathlib import Path
 
-from .config import CFG
+from .config import CFG, ROOT
 
 _lock = threading.Lock()
 # 飞书话题/会话 -> Codex session_id 持久化映射
-_SESSIONS_FILE = Path("data/codex_sessions.json")
+_SESSIONS_FILE = ROOT / "data" / "codex_sessions.json"
 
 
 def _load_sessions() -> dict[str, str]:
@@ -94,6 +92,8 @@ def execute(prompt: str, session_id: str | None = None) -> tuple[bool, str, str 
             args = [exe, "exec", "resume"]
             if is_danger:
                 args.append("--dangerously-bypass-approvals-and-sandbox")
+            else:
+                args += ["--sandbox", CFG.codex.sandbox]
             args += ["-o", str(out_file), session_id, prompt]
         else:
             # 新开会话：codex exec --color never ...

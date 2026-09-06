@@ -2,7 +2,7 @@
 
 定位：把"任意一张飞书多维表格"变成可被飞书对话、晨报、CLI 查看的轻量数据源。
 - 查看更新情况：展示记录总数与最近更新时间（字段名在 config.toml 指定）；
-- 联动取数：分页拉取全部记录并缓存到本地 JSON，供其他脚本/工作流复用。
+- 联动取数：分页拉取全部记录并缓存到本地 JSON（含全量原始 fields），供其他脚本/工作流复用。
 
 本模块不假设任何业务字段结构；业务语义由使用者自己的表格定义。
 """
@@ -92,11 +92,12 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def fetch_and_analyze() -> dict[str, Any] | None:
-    """兼容命名：拉取并摘要。未配置或失败返回 None。"""
+    """拉取全量记录，缓存"摘要 + 原始 records"；未配置或失败返回 None。"""
     records = fetch_records()
     if records is None:
         return None
     stats = summarize(records)
+    stats["records"] = records
     _save_cache(stats)
     return stats
 
@@ -121,8 +122,8 @@ def get_cached_or_fresh() -> dict[str, Any]:
     if fresh:
         return fresh
     if not configured():
-        return {"total_records": 0, "latest_updated": "", "fetched_at": "", "configured": False}
-    return {"total_records": 0, "latest_updated": "", "fetched_at": "", "configured": True}
+        return {"total_records": 0, "latest_updated": "", "fetched_at": "", "records": [], "configured": False}
+    return {"total_records": 0, "latest_updated": "", "fetched_at": "", "records": [], "configured": True}
 
 
 def build_bitable_card() -> dict:
@@ -139,7 +140,7 @@ def build_bitable_card() -> dict:
             "在 config.toml 的 [bitable] 填入 app_token / table_id（可选 updated_field），"
             "即可在飞书里查看表格更新情况。"
         )
-        return {
+        card = {
             "schema": "2.0",
             "header": {
                 "title": {"tag": "plain_text", "content": "📊 多维表格联动"},
@@ -148,6 +149,8 @@ def build_bitable_card() -> dict:
             },
             "body": {"elements": [{"tag": "markdown", "content": content}]},
         }
+        from .cards import _with_nav
+        return _with_nav(card, "bitable")
 
     latest_line = f"最近更新：**{latest}**" if latest else "最近更新：未配置 updated_field（可在 config.toml 指定时间字段）"
     elements = [
@@ -172,7 +175,7 @@ def build_bitable_card() -> dict:
             "multi_url": {"url": url, "pc_url": url, "android_url": url, "ios_url": url},
         })
 
-    return {
+    card = {
         "schema": "2.0",
         "header": {
             "title": {"tag": "plain_text", "content": f"📊 多维表格动态 · {total} 条记录"},
@@ -181,3 +184,5 @@ def build_bitable_card() -> dict:
         },
         "body": {"elements": elements},
     }
+    from .cards import _with_nav
+    return _with_nav(card, "bitable")
