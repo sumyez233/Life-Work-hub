@@ -153,7 +153,7 @@ lifehub/
 ### 1. 克隆并安装
 
 ```powershell
-git clone <your-repo-url> lifehub
+git clone https://github.com/sumyez233/Life-Work-hub.git lifehub
 cd lifehub
 python -m venv .venv
 python -m pip --python .venv\Scripts\python.exe install -r requirements.txt
