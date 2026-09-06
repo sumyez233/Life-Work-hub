@@ -1,5 +1,13 @@
-fastapi
-uvicorn[standard]
+# lifehub 直接依赖（与 pyproject.toml 保持一致）
+# 已在 Python 3.13 / Windows 11 验证：
+#   apscheduler==3.11.3  fastapi==0.141.1  httpx==0.28.1
+#   lark-oapi==1.7.3     requests==2.34.2  uvicorn==0.52.4
 apscheduler>=3.10,<4
-httpx
-lark-oapi
+fastapi>=0.110
+httpx>=0.27
+lark-oapi>=1.4,<2
+requests>=2.31
+uvicorn[standard]>=0.30
+
+# 推荐安装方式（同时获得 lifehub 命令与开发依赖）：
+#   pip install -e ".[dev]"

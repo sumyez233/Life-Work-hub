@@ -6,6 +6,9 @@
 > capture todos / events / expenses in plain language, watch your Bitable tables,
 > and shuttle files between phone and computer — all data stays on your machine.
 
+> **Status**: 个人单用户项目（experimental / alpha），Windows + 飞书优先。核心功能在作者机器上真实运行，
+> 但 API 与数据格式仍可能演进，暂不承诺向后兼容。欢迎 Issue / PR 共建。
+
 你的待办、日程、账目散落在脑子里、聊天记录里、本地便签里。Lifehub 把它们收进一个**运行在你电脑上**的中台：飞书里发一句大白话即可录入，每天早晨自动收到晨报，事件发生前主动提醒，数据永远只在本地。
 
 ---
@@ -152,6 +155,9 @@ git clone <your-repo-url> lifehub
 cd lifehub
 python -m venv .venv
 python -m pip --python .venv\Scripts\python.exe install -r requirements.txt
+
+# （可选）标准安装：额外获得全局 lifehub 命令
+python -m pip --python .venv\Scripts\python.exe install -e ".[dev]"
 ```
 
 > 若你的路径含中文导致 venv 失败，见下方"常见坑"。
@@ -223,6 +229,23 @@ app_secret = "xxxxxxxx"
 | `[transfer]` | `search_dirs` | 下行文件检索目录列表 |
 | `[codex]` | `enabled` / `allowed_chats` | Codex 直通开关与会话白名单 |
 | `[codex]` | `sandbox` | `read-only` / `workspace-write` / `danger-full-access` |
+
+---
+
+## 🧪 开发与测试 Development
+
+```powershell
+# 安装项目（含开发依赖）
+python -m pip install -e ".[dev]"
+
+# 运行单元测试（无需 pytest，unittest 即可；CI 两者皆可）
+python -m unittest discover -s tests -v
+# 或
+pytest
+```
+
+测试覆盖：解析规则、SQLite CRUD / 模糊打卡、卡片 Schema 2.0 结构、多维表格摘要、配置脱敏默认值。
+CI（`.github/workflows/ci.yml`）会在 Python 3.12 / 3.13 上执行语法检查、单元测试与 CLI 冒烟。
 
 ---
 
