@@ -252,9 +252,10 @@ def start() -> None:
                           .content(content)
                           .msg_type(payload["msg_type"]).build()).build()
         resp = client.im.v1.message.reply(req)
+        ok = resp.success() if hasattr(resp, "success") else (getattr(resp, "code", -1) == 0)
         code = getattr(resp, "code", None)
-        print(f"[REPLY] type={payload['msg_type']} code={code}", flush=True)
-        if code != 0 and chat_id:
+        print(f"[REPLY] type={payload['msg_type']} ok={ok} code={code}", flush=True)
+        if not ok and chat_id:
             from lark_oapi.api.im.v1 import CreateMessageRequest, CreateMessageRequestBody
             creq = CreateMessageRequest.builder().receive_id_type("chat_id") \
                 .request_body(CreateMessageRequestBody.builder()
