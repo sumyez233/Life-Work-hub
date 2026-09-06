@@ -305,6 +305,14 @@ Lifehub 的一切数据都在 SQLite 单文件里：停服（或直接在线，W
 
 ---
 
+## 🙏 致谢 Acknowledgements
+
+- **cc-connect**（[chenhg5/cc-connect](https://github.com/chenhg5/cc-connect)）：
+  Lifehub 的飞书 ↔ 本地 Codex 直通（WebSocket 长连接、免公网 IP、会话续聊）在思路上参考并受惠于 cc-connect。
+  Lifehub 是独立实现的 Python 项目，技术栈与代码均与其不同，但值得把这份灵感来源写在这里，特此致谢。
+
+---
+
 ## 📄 License
 
 MIT — 详见 [LICENSE](LICENSE)。作者署名：Sumyez。
