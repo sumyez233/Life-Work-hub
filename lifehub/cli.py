@@ -22,6 +22,40 @@ for _s in (sys.stdout, sys.stderr):
 from . import db, parser, report, reminders
 from .config import CFG
 
+_LOCK_HANDLES: dict[str, object] = {}
+
+
+def _acquire_lock(name: str) -> bool:
+    """跨平台文件锁实现单实例互斥，避免多个 bot/serve 实例并发运行导致消息重复。"""
+    import os
+    import sys
+    from pathlib import Path
+    from .config import ROOT_DIR
+
+    lock_dir = ROOT_DIR / "data"
+    lock_dir.mkdir(parents=True, exist_ok=True)
+    lock_file = lock_dir / f"{name}.lock"
+    fd = None
+    try:
+        fd = os.open(str(lock_file), os.O_RDWR | os.O_CREAT)
+        if sys.platform == "win32":
+            import msvcrt
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        _LOCK_HANDLES[name] = fd
+        os.ftruncate(fd, 0)
+        os.write(fd, f"{os.getpid()}\n".encode("utf-8"))
+        return True
+    except (OSError, PermissionError):
+        if fd is not None:
+            try:
+                os.close(fd)
+            except Exception:
+                pass
+        return False
+
 
 def _cmd_add(text: str) -> None:
     p = parser.parse(text)
@@ -140,8 +174,14 @@ def main() -> None:
     elif args.cmd == "preview":
         print(report.build_report())
     elif args.cmd == "serve":
+        if not _acquire_lock("serve"):
+            print("[WARN] 已有 serve 服务在后台运行中，请勿重复启动！", flush=True)
+            sys.exit(0)
         _cmd_serve()
     elif args.cmd == "bot":
+        if not _acquire_lock("bot"):
+            print("[WARN] 已有 bot 机器人在后台运行中，请勿重复启动！", flush=True)
+            sys.exit(0)
         from . import bot
         bot.start()
 

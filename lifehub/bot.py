@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import json
 import re
+import time
+from collections import OrderedDict
 
 from . import ai, cards, codex_runner, db, parser, transfer
 from .config import CFG
@@ -209,6 +211,27 @@ def _delete_any(query: str) -> str:
     return f"没找到与「{query}」相关的记录"
 
 
+# 消息去重缓存：防止长连接网络重连时飞书重推导致重复回复
+_PROCESSED_MESSAGES: OrderedDict[str, float] = OrderedDict()
+_DEDUP_WINDOW = 300.0  # 5 分钟内去重
+
+
+def _is_duplicate_message(msg_id: str) -> bool:
+    if not msg_id:
+        return False
+    now = time.time()
+    while _PROCESSED_MESSAGES:
+        first_time = next(iter(_PROCESSED_MESSAGES.values()))
+        if now - first_time > _DEDUP_WINDOW:
+            _PROCESSED_MESSAGES.popitem(last=False)
+        else:
+            break
+    if msg_id in _PROCESSED_MESSAGES:
+        return True
+    _PROCESSED_MESSAGES[msg_id] = now
+    return False
+
+
 def start() -> None:
     """阻塞运行；Ctrl+C 退出。需要 config.toml 里已填 app_id/app_secret。"""
     if not (CFG.feishu.app_id and CFG.feishu.app_secret):
@@ -295,6 +318,12 @@ def start() -> None:
     def on_message(data: lark.im.v1.P2ImMessageReceiveV1) -> None:  # type: ignore[attr-defined]
         try:
             msg = data.event.message
+            if not msg or not getattr(msg, "message_id", None):
+                return
+            if _is_duplicate_message(msg.message_id):
+                print(f"[DEDUP] 忽略重复推送消息 msg_id={msg.message_id}", flush=True)
+                return
+
             chat_id = getattr(msg, "chat_id", None)
 
             # 1. 接收文件消息：自动存入收件箱
