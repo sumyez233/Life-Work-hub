@@ -78,7 +78,7 @@ Lifehub：✓ 已搞定：买牛奶，干得漂亮！
 
 ### 🔒 Local-First 数据主权
 
-- SQLite 单文件存储（WAL），备份 = 拷贝一个文件；
+- SQLite 单文件存储（WAL）；停服后备份只需拷贝一个文件，在线备份见下文"运维"；
 - 配置、缓存、收件箱全部本地；飞书仅作为消息通道与卡片 UI；
 - 开启可选 AI / Codex 后，相关消息文本与任务会发往 DeepSeek / Codex 等外部服务——**只有你主动开启的功能才会外发**；
 - 基于飞书 WebSocket 长连接，**无需公网 IP / 端口映射**。
@@ -156,10 +156,10 @@ lifehub/
 git clone https://github.com/sumyez233/Life-Work-hub.git lifehub
 cd lifehub
 python -m venv .venv
-python -m pip --python .venv\Scripts\python.exe install -r requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
 
 # （可选）标准安装：额外获得全局 lifehub 命令
-python -m pip --python .venv\Scripts\python.exe install -e ".[dev]"
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
 ```
 
 > 若你的路径含中文导致 venv 失败，见下方"常见坑"。
@@ -270,7 +270,10 @@ powershell -ExecutionPolicy Bypass -File .\scripts\uninstall_autostart.ps1
 
 ### 备份
 
-Lifehub 的一切数据都在 SQLite 单文件里：停服（或直接在线，WAL 模式下）拷贝 `data/hub.db` 即可。
+Lifehub 的数据主体在 SQLite（WAL 模式）里。**最稳妥的备份方式**：先停服再拷贝 `data/hub.db`；
+若不想停服，请连同 `-wal` / `-shm` 一起拷贝，或先执行一次 checkpoint
+（例如 `sqlite3 data/hub.db "PRAGMA wal_checkpoint(TRUNCATE);"`）再拷贝主文件。
+`bitable_cache.json`、`codex_sessions.json` 等缓存可按需一并备份。
 
 ---
 
@@ -289,6 +292,7 @@ Lifehub 的一切数据都在 SQLite 单文件里：停服（或直接在线，W
 
 - `config.toml` 含你的真实密钥，已被 `.gitignore` 排除，**严禁提交**；仓库只提供 `config.example.toml`。
 - `data/*.db`、缓存 JSON、收件箱均在 `.gitignore` 中，不会入库。
+- 本地 API（`8420`）**无鉴权**且仅监听 `127.0.0.1`：请勿通过端口转发或局域网暴露，否则本机任意程序都可读写你的数据。
 - 核心数据默认本地；若在 `[ai]` 填入 Key 或启用 `[codex]`，相关文本会发送到对应外部服务，请自行评估。
 - **Codex 直通风险**：默认 `read-only` 且限 `allowed_chats`。若配置为 `danger-full-access`，飞书消息将能触发本机无沙箱执行——请仅在你完全信任且长期可控的会话中使用，README 与代码注释均不建议默认开启。
 - 本项目是面向个人的本地工具，不是企业级多租户系统；请自行评估你所在环境的安全策略。

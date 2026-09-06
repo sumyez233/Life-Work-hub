@@ -1,18 +1,22 @@
 """本地 HTTP 服务：REST 接口 + 晨报定时任务（未来仪表盘的后端）。"""
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from . import cards, db, parser, report
+from . import __version__, cards, db, parser, report
 from .push import send_text
 
-app = FastAPI(title="lifehub", version="0.4.0")
 
-
-@app.on_event("startup")
-def _startup() -> None:
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
     db.init_db()
+    yield
+
+
+app = FastAPI(title="lifehub", version=__version__, lifespan=_lifespan)
 
 
 class QuickIn(BaseModel):
@@ -21,7 +25,7 @@ class QuickIn(BaseModel):
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "db": str(db.CFG.hub.db)}
+    return {"ok": True, "service": "lifehub", "version": __version__}
 
 
 @app.get("/api/todos")

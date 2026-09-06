@@ -2,7 +2,8 @@
 
 设计要点：
 - 支持飞书话题 Thread 级多轮连续会话（通过 codex exec resume <session_id> 自动续聊）；
-- 默认读取 config.toml [codex].sandbox（Windows 推荐 danger-full-access 避免命名管道与目录锁）；
+- 沙箱取自 config.toml [codex].sandbox，默认 read-only；danger-full-access 会追加
+  --dangerously-bypass-approvals-and-sandbox（高风险，仅限完全可信的会话使用）；
 - 只在 [codex].allowed_chats 白名单会话内响应；
 - 同一 bot 进程同一时间只跑一个 Codex 任务，避免并发抢锁；
 - 全程无窗口（CREATE_NO_WINDOW），超时用 taskkill /T 连带子进程清理。
