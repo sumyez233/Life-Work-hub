@@ -30,9 +30,9 @@ def _acquire_lock(name: str) -> bool:
     import os
     import sys
     from pathlib import Path
-    from .config import ROOT_DIR
+    from .config import ROOT
 
-    lock_dir = ROOT_DIR / "data"
+    lock_dir = ROOT / "data"
     lock_dir.mkdir(parents=True, exist_ok=True)
     lock_file = lock_dir / f"{name}.lock"
     fd = None
@@ -55,6 +55,17 @@ def _acquire_lock(name: str) -> bool:
             except Exception:
                 pass
         return False
+
+
+def _release_lock(name: str) -> None:
+    """释放指定名称的实例锁（进程退出时会自动释放，此函数供显式释放与测试用）。"""
+    import os
+    fd = _LOCK_HANDLES.pop(name, None)
+    if fd is not None:
+        try:
+            os.close(fd)
+        except Exception:
+            pass
 
 
 def _cmd_add(text: str) -> None:
