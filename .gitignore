@@ -19,6 +19,7 @@ config.toml
 data/*.db
 data/*.db-wal
 data/*.db-shm
+data/*.lock
 data/*.json
 
 # Local User Inbox & Downloads
