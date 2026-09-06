@@ -1,0 +1,31 @@
+# Virtual Environment
+.venv/
+venv/
+ENV/
+.tmp/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+
+# Private configurations & sensitive keys
+config.toml
+
+# Local database & private data
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/*.json
+
+# Local User Inbox & Downloads
+inbox/
+
+# OS / Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

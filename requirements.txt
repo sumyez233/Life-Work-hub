@@ -1,0 +1,5 @@
+fastapi
+uvicorn[standard]
+apscheduler>=3.10,<4
+httpx
+lark-oapi

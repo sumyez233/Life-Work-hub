@@ -1,0 +1,65 @@
+# lifehub 配置文件示例 —— 复制为 config.toml 并填入你的配置
+
+[feishu]
+# 群自定义机器人 webhook（可选，用于晨报群推送）
+webhook = ""
+
+# 自建应用凭据（必填：在飞书开放平台「凭证与基础信息」获取）
+app_id = "cli_xxxxxxxxxxxxxxxx"
+app_secret = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# webhook 安全关键词
+keyword = "中台"
+
+# 晨报推送目标群 ID（通过 chats 命令可查）
+report_chat = ""
+
+[ai]
+# 大模型配置（可选：用于复杂自然语言消息的智能意图提取）
+api_key = "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+base_url = "https://api.deepseek.com"
+model = "deepseek-chat"
+
+[hub]
+# 数据库存储路径
+db = "data/hub.db"
+
+# 每日晨报推送时间（24小时制，本机时区）
+report_time = "08:00"
+
+# 日程开始前多少分钟推送提醒
+remind_before = 30
+
+# Web 端口
+port = 8420
+
+[bitable]
+# 飞书多维表格联动（可选）：留空则「大盘/台账」等指令提示未配置
+app_token = ""
+table_id = ""
+# 若表格有表示更新时间的字段，填上后卡片会展示"最近更新"
+updated_field = ""
+cache_file = "data/bitable_cache.json"
+
+[transfer]
+# 手机上行文件收件箱（相对项目根或绝对路径均可）
+inbox_dir = "inbox"
+# 下行"传 <关键词>"的检索目录；留空则禁用磁盘检索
+search_dirs = []
+
+[codex]
+# 飞书 → Codex CLI 直通（可选；不填则整段不生效）
+enabled = false
+# 允许触发 Codex 的会话 ID（私聊/群聊均可，用 chats 命令查询）；建议只放自己的单聊/私群
+allowed_chats = ["oc_xxxxxxxxxxxxxxxxxxxxxxxx"]
+# Codex 执行工作根目录
+workdir = "."
+# 留空用 Codex CLI 默认模型
+model = ""
+# 沙箱策略：read-only 最安全；workspace-write 允许改项目内文件；
+# danger-full-access 会追加 --dangerously-bypass-approvals-and-sandbox，请自行评估风险后使用
+sandbox = "read-only"
+# 单次任务超时（秒）
+timeout_seconds = 600
+# 回传飞书的文本长度上限
+max_output_chars = 4000
