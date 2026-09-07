@@ -25,34 +25,102 @@ def _get_token() -> str | None:
         return None
 
 
-def find_file(keyword: str) -> Path | None:
-    """在常用目录中模糊搜索文件。"""
-    keyword = keyword.strip().strip("'\"")
-    # 1. 绝对路径或当前相对路径
-    p = Path(keyword)
-    if p.is_file():
-        return p
+import datetime
 
-    # 2. 在配置的搜索目录中匹配
+_IGNORE_DIRS = {".git", ".venv", "node_modules", "__pycache__", "$RECYCLE.BIN", "System Volume Information", ".idea", ".vscode"}
+
+# 保存每个会话最近一次搜索产生的候选文件列表：chat_id -> list[Path]
+_PENDING_CANDIDATES: dict[str, list[Path]] = {}
+
+
+def get_candidates(chat_id: str) -> list[Path]:
+    """获取会话当前的待确认文件列表。"""
+    return _PENDING_CANDIDATES.get(chat_id, [])
+
+
+def set_candidates(chat_id: str, candidates: list[Path]) -> None:
+    """设置会话当前的待确认文件列表。"""
+    _PENDING_CANDIDATES[chat_id] = candidates
+
+
+def clear_candidates(chat_id: str) -> None:
+    """清空会话当前的待确认文件列表。"""
+    _PENDING_CANDIDATES.pop(chat_id, None)
+
+
+def search_files(keyword: str, max_results: int = 5, max_depth: int = 4) -> list[Path]:
+    """在常用项目目录中深度递归搜索文件，按最新修改时间（mtime）倒序返回。"""
+    keyword = keyword.strip().strip("'\"")
+    if not keyword:
+        return []
+
+    # 1. 如果是绝对路径或相对路径且就是现有文件，直接返回唯一项
+    p = Path(keyword)
+    try:
+        if p.is_file():
+            return [p]
+    except Exception:
+        pass
+
     clean_kw = keyword.lower()
+    matches: list[Path] = []
+    seen: set[Path] = set()
+
     for d in CFG.transfer.search_dirs:
-        dir_path = Path(d)
-        if not dir_path.is_dir():
+        root_dir = Path(d)
+        if not root_dir.is_dir():
             continue
         try:
-            # 优先检查直接子文件
-            for f in dir_path.iterdir():
-                if f.is_file() and clean_kw in f.name.lower():
-                    return f
-            # 再检查一层子目录（如常用子文件夹）
-            for sub in dir_path.iterdir():
-                if sub.is_dir() and not sub.name.startswith("."):
-                    for f in sub.iterdir():
-                        if f.is_file() and clean_kw in f.name.lower():
-                            return f
-        except Exception:
+            # 限制遍历深度，避免无休止扫描整个巨型磁盘
+            root_parts_len = len(root_dir.parts)
+            for root, dirs, files in os.walk(root_dir):
+                # 过滤无用/巨型隐藏目录
+                dirs[:] = [sub for sub in dirs if sub not in _IGNORE_DIRS and not sub.startswith(".")]
+                cur_depth = len(Path(root).parts) - root_parts_len
+                if cur_depth >= max_depth:
+                    dirs.clear()  # 不再深入
+
+                for fname in files:
+                    if clean_kw in fname.lower():
+                        full_path = Path(root) / fname
+                        if full_path not in seen:
+                            seen.add(full_path)
+                            matches.append(full_path)
+        except Exception as e:
+            log.warning("遍历目录 %s 异常: %s", d, e)
             continue
-    return None
+
+    # 按修改时间（mtime）倒序排列：最新的文件排在最前
+    def _mtime_key(item: Path) -> float:
+        try:
+            return item.stat().st_mtime
+        except Exception:
+            return 0.0
+
+    matches.sort(key=_mtime_key, reverse=True)
+    return matches[:max_results]
+
+
+def format_candidate_list(keyword: str, candidates: list[Path]) -> str:
+    """将候选文件格式化为飞书提示文案。"""
+    lines = [f"🔍 找到 {len(candidates)} 个与「{keyword}」相关的文件（已按最新修改排序）："]
+    for i, path in enumerate(candidates, 1):
+        try:
+            mtime = datetime.datetime.fromtimestamp(path.stat().st_mtime).strftime("%m-%d %H:%M")
+            size_kb = path.stat().st_size / 1024
+            size_str = f"{size_kb / 1024:.1f}MB" if size_kb >= 1024 else f"{size_kb:.0f}KB"
+        except Exception:
+            mtime = "未知时间"
+            size_str = ""
+        lines.append(f"{i}. 📄 {path.name}\n   🕒 {mtime} | {size_str}\n   📂 {path.parent}")
+    lines.append("\n💡 请直接回复序号（如「1」或「/send 1」）立刻推送该文件。")
+    return "\n".join(lines)
+
+
+def find_file(keyword: str) -> Path | None:
+    """单文件快速查找（优先最新修改文件）。"""
+    res = search_files(keyword, max_results=1)
+    return res[0] if res else None
 
 
 def send_file(file_path: str | Path, chat_id: str | None = None) -> tuple[bool, str]:
